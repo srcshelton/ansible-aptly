@@ -1,0 +1,152 @@
+---
+
+- assert:
+    that:
+      - aptly_gpg_passphrase != 'i need to be replaced'
+    msg: 'aptly_gpg_passphrase must be set to a non-default secure value'
+
+# Install packages
+#
+
+- name: Configure repo for aptly
+  apt_repository: >
+    repo="{{ item }}"
+    state=present
+    update_cache=yes
+    validate_certs=yes
+  with_items:
+    - 'deb http://repo.aptly.info/ squeeze main'
+  when: ansible_distribution == 'Ubuntu' or ansible_distribution == 'Debian'
+
+- name: Install aptly & deps
+  apt: >
+    name="{{ item }}"
+    state=latest
+    update_cache=no
+  with_items:
+    - aptly
+    - gnupg
+    - gpgv
+    # haveged is necessary to successfully run gpg on VMs/headless servers but
+    # we may have a role which we can include to set this up for us.  If
+    # deploying elsewhere, don't forget to install haveged!
+    - haveged
+  when: ansible_distribution == 'Ubuntu' or ansible_distribution == 'Debian'
+
+- name: Install aptly bash completion
+  get_url: >
+    mode=0644
+    group=root
+    owner=root
+    url="{{ item }}"
+    dest="/etc/bash_completion.d/aptly"
+    validate_certs=yes
+  with_items:
+    - 'https://github.com/aptly-dev/aptly-bash-completion/raw/master/aptly'
+
+# Deploy aptly.conf
+#
+
+- name: Deploy aptly.conf
+  template: >
+    src="aptly.conf.j2"
+    dest="{{ aptly_config_dir }}/aptly.conf"
+    mode=0664
+
+# Create GPG keys...
+#
+
+- name: Generate GPG keyrings
+  script: "{{ role_path }}/files/create-gpg-keys.sh {{ aptly_gpg_passphrase }} {{ aptly_config_dir }} {{ aptly_gpg_email }}"
+  args:
+    creates: "{{ aptly_config_dir }}/pubring.gpg"
+
+# Import external repo GPG keys...
+#
+# (These will always exist on Debian-derived systems, as the {distro}-keyring
+#  providing the files in question is a direct dependency of 'apt')
+#
+
+- name: Import Ubuntu system GPG keys
+  shell: "gpg --no-default-keyring --keyring '/usr/share/keyrings/ubuntu-archive-keyring.gpg' --export | gpg --no-default-keyring --keyring '{{ aptly_config_dir }}/pubring.gpg' --import"
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Import Debian system GPG keys
+  shell: "gpg --no-default-keyring --keyring '/usr/share/keyrings/debian-archive-keyring.gpg' --export | gpg --no-default-keyring --keyring '{{ aptly_config_dir }}/pubring.gpg' --import"
+  when: ansible_distribution == 'Debian'
+
+# The following should work according to the documentation, but few repos
+# appear to publish their keys in this way, rendering it redundant compared to
+# importing from the keyserver, as below.  This might be needed in the future
+# for third-party repos without published keys? (Dubious cat is dubious...)
+#
+#- name: Import mirror Release.key GPG key
+#  shell: "wget -O - '{{ item.repo }}/Release.key' | gpg --no-default-keyring --keyring 'trustedkeys.gpg' --import"
+#  ignore_errors: true
+#  with_items:
+#    - "{{ aptly_default_mirror | union(aptly_mirror) }}"
+#
+#- name: Import mirror Release.key GPG key
+#  shell: "wget -O - \"$( cut -d' ' -f 1 <<<'{{ item.repo }}' )/dists/$( cut -d' ' -f 2 <<<'{{ item.repo }}' )/Release.gpg\" | gpg --no-default-keyring --keyring 'trustedkeys.gpg' --import"
+#  args:
+#    executable: /bin/bash
+#  ignore_errors: true
+#  with_items:
+#    - "{{ aptly_default_mirror | union(aptly_mirror) }}"
+
+# Import repo keys
+#
+- name: Import repo public keys from RSA Key IDs
+  command: "gpg --no-default-keyring --keyring '{{ aptly_config_dir }}/pubring.gpg' --keyserver 'keys.gnupg.net' --recv-keys {{ item.key }}"
+  when: item.key is defined
+  with_items:
+    - "{{ aptly_default_mirror | union(aptly_mirror) }}"
+
+# Configure initial aptly repos
+#
+- name: Create initial aptly mirror for defined repos
+  shell: "aptly mirror list | grep -Fq '{{ item.name }}' || aptly mirror create -filter='{{ item.filter }}' '{{ item.name }}' {{ item.repo }}"
+  with_items:
+    - "{{ aptly_default_mirror | union(aptly_mirror) }}"
+
+# Deploy aptly-update.sh configuration and script from template...
+#
+- name: Deploy aptly-update.conf
+  template: >
+    src="aptly-update.conf.j2"
+    dest="{{ aptly_config_dir }}/aptly-update.conf"
+    mode=0600
+    group=root
+    owner=root
+    validate='bash -n %s'
+
+- name: Deploy aptly-update.sh script
+  copy: >
+    src="aptly-update.sh"
+    dest="{{ aptly_tools_dir }}/aptly-update.sh"
+    mode=0750
+    group=root
+    owner=root
+    validate='bash -n %s'
+
+- name: Run aptly-update.sh script
+  shell: "{ date ; nohup {{ aptly_tools_dir }}/aptly-update.sh ; } >>/var/log/aptly-update.log 2>&1 &"
+  args:
+    warn: false
+
+- cron:
+    name="Add cron job to run aptly-update.sh periodically"
+    state=present
+    cron_file="aptly-update"
+    special_time=daily
+    user=root
+    job="{{ aptly_tools_dir }}/aptly-update.sh 2>&1 | tee -a /var/log/aptly-update.log"
+    #minute=*
+    #hour=*
+    #dom=* # day
+    #month=*
+    #dow=* # weekday
+
+...
+
+# vi: set syntax=yaml:

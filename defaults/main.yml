@@ -1,0 +1,135 @@
+---
+
+# Default email identifiers - the value of `aptly_gpg_email` only needs to be
+# an email address in PGP/GPG terms, and is used solely to identify the
+# identitiy to use when signing a published repo.  `aptly_notify_email` is used
+# as the recipient address for progress reporting by 'aptly-update.sh'.
+#
+aptly_gpg_email: "repo-signing-key@localdomain"
+aptly_notify_email: "hostmaster@localdomain"
+
+# GPG key passphrase - please replace this default with a host-specific signing
+# key-phrase from an Ansible Vault (or similar)...
+#
+aptly_gpg_passphrase: "i need to be replaced"
+
+
+# Where to write the aptly configuration files, database files and repo root,
+# and supporting scripts respectively - if supporting multiple distributions or
+# releases (see below) then you may wish to specify a unique 'aptly_root_dir'
+# (and even 'aptly_config_dir') per distro/release pair.
+#
+# N.B. A full Debian mirror can be 70GiB or more, so please ensure that the
+#      specified 'aptly_root_dir' location has plenty of free space!
+#
+aptly_config_dir: /etc/aptly
+aptly_root_dir: /srv/aptly
+aptly_tools_dir: /usr/local/sbin
+
+
+# Whilst the supplied aptly-update.sh script fully supports multiple
+# distributions and multiple releases, best practice would be to invoke this
+# playbook multiple times with different root-directories for each supported
+# distribution - to combine different distributions into the same database is
+# much less efficient than maintaining separate databases.  Therefore, the
+# configuration below allows for one distribution and release only.
+#
+aptly_distro: trusty
+aptly_distro_release: 14.04.4
+aptly_distro_mirror: http://archive.ubuntu.com/ubuntu/
+aptly_distro_architectures:
+  - amd64
+
+
+# aptly-update.sh supports three published repos per root-directory:
+#  * latest  - which tracks the latest upstream updates, for integration
+#              testing;
+#  * testing - used to validate updates from 'latest' before adding to
+#              'stable';
+#  * stable  - the "production" repo which changes rarely, and only after
+#              validation in the 'testing' repo.
+#
+
+# If the snapshot from a given date should be published as a 'stable' repo,
+# specify this here (in ISO format):
+#aptly_stable_snapshot_date="20161101"
+
+# If the snapshot from a given date should be published as a 'testing' repo,
+# specify this here (in ISO format):
+#aptly_testing_snapshot_date="20161101"
+
+
+aptly_ppa_distributor_id: ubuntu
+
+# Ansible allows default arrays to be overridden/replaced, but doesn't provide
+# a trivial to add to arrays this are defined as defaults - therefore, we'll
+# populate 'aptly_default_ppa' and 'aptly_default_mirror' here, whilst
+# providing 'aptly_ppa' and aptly_mirror' as empty arrays to be (optionally)
+# redefined when this role is used.
+
+# Define additional host- or environment- specific PPAs in 'aptly_ppa'.  Note
+# that these will also require additional entries in 'aptly_mirror' providing
+# URLs, keys, filters, etc.
+#
+aptly_ppa: []
+#aptly_ppa:
+# - nginx
+
+# Don't override 'aptly_default_ppa'
+#
+aptly_default_ppa:
+  - aptly
+
+# Override mirrors for PPAs and and additional repos as 'aptly_mirror'
+aptly_mirror: []
+# - name: ppa-nginx-trusty
+#   repo: 'http://ppa.launchpad.net/nginx/stable/ubuntu trusty main'
+#   filter: ~
+#   key: C300EE8C
+
+
+# Don't override 'aptly_default_mirror'
+#
+aptly_default_mirror:
+  - name: repo-aptly-squeeze
+    repo: 'http://repo.aptly.info/ squeeze main'
+    filter: ~
+    key: 9E3E53F19C7DE460
+
+  - name: "{{ aptly_distro }}-main"
+    repo: 'http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }} main'
+    filter: ~
+  - name: "{{ aptly_distro }}-universe"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }} universe"
+    filter: ~
+  - name: "{{ aptly_distro }}-multiverse"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }} multiverse"
+    filter: ~
+  - name: "{{ aptly_distro }}-security-main"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-security main"
+    filter: ~
+  - name: "{{ aptly_distro }}-security-universe"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-security universe"
+    filter: ~
+  - name: "{{ aptly_distro }}-security-multiverse"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-security multiverse"
+    filter: ~
+  - name: "{{ aptly_distro }}-updates-main"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-updates main"
+    filter: ~
+  - name: "{{ aptly_distro }}-updates-universe"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-updates universe"
+    filter: ~
+  - name: "{{ aptly_distro }}-updates-multiverse"
+    repo: "http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }}-updates multiverse"
+    filter: ~
+
+    # The 'restricted' repo contains predominantly closed-source hardware
+    # drivers - although also, strangely, 'mysql-doc-5.0'?!
+# - name: {{ aptly_distro }}-restricted
+#   repo: 'http://archive.ubuntu.com/ubuntu/ {{ aptly_distro }} restricted'
+#   filter: ~
+
+...
+
+# vi: set syntax=yaml:

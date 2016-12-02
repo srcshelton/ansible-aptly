@@ -1,0 +1,46 @@
+# Configuration for {{ aptly_tools_dir }}/aptly-update.sh
+
+# What distribution and release are we mirroring, and whence?
+DISTRO="{{ aptly_distro }}"
+RELEASE="{{ aptly_distro_release }}"
+MIRROR="{{ aptly_distro_mirror }}"
+
+# Optinal stable and testing snapshot dates...
+{% if aptly_stable_snapshot_date is defined %}
+STABLE="{{ aptly_stable_snapshot_date }}"
+{% else %}
+#STABLE=''
+{% endif %}
+{% if aptly_testing_snapshot_date is defined %}
+TESTING="{{ aptly_testing_snapshot_date }}"
+{% else %}
+#TESTING=''
+{% endif %}
+
+# List of PPAs to update...
+#
+# N.B. The original mirror must have already been created - for PPAs, we
+#      perform an update operation only!
+#
+{% if aptly_ppa is defined and aptly_ppa %}
+PPA=(
+{% for ppa in aptly_ppa %}
+	{{ ppa }}
+{% endfor %}
+)
+{% else %}
+#PPA=()
+{% endif %}
+
+# How long should we wait before re-mirroring if a repo changes during
+# processing?
+#
+DELAY=5
+
+# Options to pass directly to aptly, unprocessed by aptly-update.sh.  Note that
+# this file should be maintained as root-readable only since the GPG passphrase
+# is reproduced in plain-text below...
+#
+APTLY_OPTS='-passphrase="{{ aptly_gpg_passphrase }}" -keyring="{{ aptly_config_dir }}/pubring.gpg" -secret-keyring="{{ aptly_config_dir }}/secring.gpg" -gpg-key="{{ aptly_gpg_email }}"'
+
+# vi: set syntax=sh:

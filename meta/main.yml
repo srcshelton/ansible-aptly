@@ -1,0 +1,14 @@
+---
+
+# Creating GPG keys can fail (or, at least, pause for an extended period) when
+# run on VMs with very weak entropy sources - it is strongly advised that
+# 'haveged' by installed on all VMs to ensure an adequate supply of randomness.
+# This may be acheived by simply including a task to execute 'apt' with an
+# argument of 'haveged', or by making this a standalone role (which is the
+# suggested solution) and expressing a dependency on this below:
+#
+
+#dependencies:
+#  - role: "haveged"
+
+...
