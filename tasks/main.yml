@@ -8,6 +8,26 @@
 # Install packages
 #
 
+# Choose one of the below methods to obtain the public signing-key for the
+# Aptly repo...
+
+- name: Add aptly apt key from keyserver
+  apt_key:
+    keyserver: keys.gnupg.net
+    id: "{{ item }}"
+    state: present
+  with_items:
+    - '9E3E53F19C7DE460'
+  when: ansible_distribution == 'Ubuntu' or ansible_distribution == 'Debian'
+
+#- name: Add aptly apt key from remote file
+#  apt_key:
+#    url: "{{ item }}"
+#    state: present
+#  with_items:
+#    - 'https://www.aptly.info/pubkey.txt'
+#  when: ansible_distribution == 'Ubuntu' or ansible_distribution == 'Debian'
+
 - name: Configure repo for aptly
   apt_repository: >
     repo="{{ item }}"
